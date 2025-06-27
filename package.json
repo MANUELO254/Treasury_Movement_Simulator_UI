@@ -1,0 +1,22 @@
+{
+  "name": "treasury-movement-simulator",
+  "version": "1.0.0",
+  "description": "A web-based tool to manage and simulate fund transfers across virtual accounts",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "treasury",
+    "finance",
+    "simulator",
+    "transfers"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
