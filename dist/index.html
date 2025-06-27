@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treasury Movement Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .balance-update {
+            animation: pulse 0.5s ease-in-out;
+        }
+        
+        .currency-kes {
+            background-color: #10b981;
+        }
+        
+        .currency-usd {
+            background-color: #3b82f6;
+        }
+        
+        .currency-ngn {
+            background-color: #f59e0b;
+        }
+        
+        .scheduled-transfer {
+            position: relative;
+        }
+        
+        .scheduled-transfer::after {
+            content: "Scheduled";
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #6366f1;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 9999px;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 768px) {
+            .transfer-form {
+                flex-direction: column;
+            }
+            
+            .transfer-form > div {
+                width: 100%;
+                margin-bottom: 1rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2"><i class="fas fa-university mr-2"></i> Treasury Movement Simulator</h1>
+            <p class="text-gray-600">Simulate treasury operations across 10 virtual accounts in 3 currencies</p>
+        </header>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Accounts Panel -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-semibold text-gray-700"><i class="fas fa-briefcase mr-2"></i> Virtual Accounts</h2>
+                        <div class="flex space-x-2">
+                            <button id="reset-accounts" class="px-3 py-1 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 transition">
+                                <i class="fas fa-sync-alt mr-1"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" id="accounts-container">
+                        <!-- Accounts will be populated here by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Transfer Section -->
+            <div>
+                <div class="bg-white rounded-lg shadow-md p-6 sticky top-4">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4"><i class="fas fa-exchange-alt mr-2"></i> Transfer Funds</h2>
+                    
+                    <form id="transfer-form" class="space-y-4">
+                        <div class="transfer-form flex flex-wrap gap-4">
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="source-account" class="block text-sm font-medium text-gray-700 mb-1">From Account</label>
+                                <select id="source-account" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Select source account</option>
+                                    <!-- Options will be populated by JavaScript -->
+                                </select>
+                            </div>
+                            
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="destination-account" class="block text-sm font-medium text-gray-700 mb-1">To Account</label>
+                                <select id="destination-account" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Select destination account</option>
+                                    <!-- Options will be populated by JavaScript -->
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="transfer-form flex flex-wrap gap-4">
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                                <input type="number" id="amount" min="0" step="0.01" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00">
+                            </div>
+                            
+                            <div class="flex-1 min-w-[200px]">
+                                <label for="transfer-date" class="block text-sm font-medium text-gray-700 mb-1">Schedule Transfer</label>
+                                <input type="datetime-local" id="transfer-date" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="note" class="block text-sm font-medium text-gray-700 mb-1">Note (Optional)</label>
+                            <textarea id="note" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Reason for transfer"></textarea>
+                        </div>
+                        
+                        <div id="fx-conversion" class="hidden bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
+                            <div class="flex justify-between">
+                                <span>FX Conversion:</span>
+                                <span id="conversion-rate"></span>
+                            </div>
+                            <div class="flex justify-between font-semibold mt-1">
+                                <span>Amount to receive:</span>
+                                <span id="converted-amount"></span>
+                            </div>
+                        </div>
+                        
+                        <div id="transfer-error" class="hidden bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800"></div>
+                        
+                        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md shadow-sm transition duration-150 ease-in-out">
+                            <i class="fas fa-exchange-alt mr-2"></i> Transfer Funds
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Transaction Log -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-semibold text-gray-700"><i class="fas fa-list-ul mr-2"></i> Transaction Log</h2>
+                
+                <div class="flex space-x-2">
+                    <select id="filter-account" class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">All Accounts</option>
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                    
+                    <select id="filter-currency" class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="">All Currencies</option>
+                        <option value="KES">KES</option>
+                        <option value="USD">USD</option>
+                        <option value="NGN">NGN</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200" id="transaction-log">
+                        <!-- Dummy transactions will be populated here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="no-transactions" class="text-center py-8 text-gray-500">
+                <i class="fas fa-exchange-alt text-4xl mb-2 text-gray-300"></i>
+                <p>No transactions yet. Make your first transfer!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Exchange rates
+        const exchangeRates = {
+            USD: { KES: 130, NGN: 1000 },
+            KES: { USD: 1/130, NGN: 0.13 },
+            NGN: { USD: 1/1000, KES: 1/0.13 }
+        };
+        
+        // Accounts data
+        let accounts = [
+            { id: 'mpesa_kes_1', name: 'Mpesa KES 1', currency: 'KES', balance: 50000 },
+            { id: 'mpesa_kes_2', name: 'Mpesa KES 2', currency: 'KES', balance: 75000 },
+            { id: 'mpesa_kes_3', name: 'Mpesa KES 3', currency: 'KES', balance: 30000 },
+            { id: 'bank_kes_1', name: 'Bank KES 1', currency: 'KES', balance: 120000 },
+            { id: 'bank_kes_2', name: 'Bank KES 2', currency: 'KES', balance: 45000 },
+            { id: 'bank_usd_1', name: 'Bank USD 1', currency: 'USD', balance: 1500 },
+            { id: 'bank_usd_2', name: 'Bank USD 2', currency: 'USD', balance: 800 },
+            { id: 'bank_usd_3', name: 'Bank USD 3', currency: 'USD', balance: 2200 },
+            { id: 'bank_ngn_1', name: 'Bank NGN 1', currency: 'NGN', balance: 500000 },
+            { id: 'bank_ngn_2', name: 'Bank NGN 2', currency: 'NGN', balance: 300000 }
+        ];
+        
+        // Transactions data (with dummy data)
+        let transactions = [
+            {
+                id: Date.now() - 86400000, // 1 day ago
+                timestamp: new Date(Date.now() - 86400000),
+                sourceAccount: 'mpesa_kes_1',
+                sourceName: 'Mpesa KES 1',
+                sourceCurrency: 'KES',
+                destinationAccount: 'bank_kes_1',
+                destinationName: 'Bank KES 1',
+                destinationCurrency: 'KES',
+                amount: 10000,
+                convertedAmount: 10000,
+                rate: 1,
+                note: 'Monthly payout'
+            },
+            {
+                id: Date.now() - 172800000, // 2 days ago
+                timestamp: new Date(Date.now() - 172800000),
+                sourceAccount: 'bank_usd_1',
+                sourceName: 'Bank USD 1',
+                sourceCurrency: 'USD',
+                destinationAccount: 'bank_ngn_2',
+                destinationName: 'Bank NGN 2',
+                destinationCurrency: 'NGN',
+                amount: 200,
+                convertedAmount: 200000,
+                rate: 1000,
+                note: 'FX conversion for supplier'
+            },
+            {
+                id: Date.now() - 259200000, // 3 days ago
+                timestamp: new Date(Date.now() - 259200000),
+                sourceAccount: 'bank_ngn_1',
+                sourceName: 'Bank NGN 1',
+                sourceCurrency: 'NGN',
+                destinationAccount: 'mpesa_kes_3',
+                destinationName: 'Mpesa KES 3',
+                destinationCurrency: 'KES',
+                amount: 100000,
+                convertedAmount: 13000,
+                rate: 0.13,
+                note: 'Regional transfer'
+            }
+        ];
+        
+        // Scheduled transfers
+        let scheduledTransfers = [];
+        
+        // DOM elements
+        const accountsContainer = document.getElementById('accounts-container');
+        const sourceAccountSelect = document.getElementById('source-account');
+        const destinationAccountSelect = document.getElementById('destination-account');
+        const amountInput = document.getElementById('amount');
+        const noteInput = document.getElementById('note');
+        const transferDateInput = document.getElementById('transfer-date');
+        const transferForm = document.getElementById('transfer-form');
+        const transactionLog = document.getElementById('transaction-log');
+        const noTransactions = document.getElementById('no-transactions');
+        const fxConversion = document.getElementById('fx-conversion');
+        const conversionRate = document.getElementById('conversion-rate');
+        const convertedAmount = document.getElementById('converted-amount');
+        const transferError = document.getElementById('transfer-error');
+        const filterAccount = document.getElementById('filter-account');
+        const filterCurrency = document.getElementById('filter-currency');
+        const resetAccountsBtn = document.getElementById('reset-accounts');
+        
+        // Initialize the app
+        function init() {
+            renderAccounts();
+            populateAccountSelects();
+            renderTransactionLog();
+            checkScheduledTransfers();
+            
+            // Set default transfer date to now
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset() * 60000;
+            const localISOTime = new Date(now - timezoneOffset).toISOString().slice(0, 16);
+            transferDateInput.value = localISOTime;
+            
+            // Event listeners
+            transferForm.addEventListener('submit', handleTransfer);
+            sourceAccountSelect.addEventListener('change', handleSourceAccountChange);
+            destinationAccountSelect.addEventListener('change', handleDestinationAccountChange);
+            filterAccount.addEventListener('change', renderTransactionLog);
+            filterCurrency.addEventListener('change', renderTransactionLog);
+            resetAccountsBtn.addEventListener('click', resetAccounts);
+            
+            // Check for scheduled transfers every minute
+            setInterval(checkScheduledTransfers, 60000);
+        }
+        
+        // Render accounts in the accounts panel
+        function renderAccounts() {
+            accountsContainer.innerHTML = '';
+            
+            accounts.forEach(account => {
+                const accountCard = document.createElement('div');
+                accountCard.className = 'bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition';
+                accountCard.innerHTML = `
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-medium text-gray-800">${account.name}</h3>
+                        <span class="px-2 py-1 rounded-full text-xs font-semibold text-white currency-${account.currency.toLowerCase()}">
+                            ${account.currency}
+                        </span>
+                    </div>
+                    <div class="flex items-end justify-between">
+                        <p class="text-2xl font-bold text-gray-800 balance-display" data-account="${account.id}">
+                            ${formatCurrency(account.balance, account.currency)}
+                        </p>
+                        <button class="text-blue-500 hover:text-blue-700 text-sm font-medium" onclick="setAsSourceAccount('${account.id}')">
+                            <i class="fas fa-arrow-up mr-1"></i> Send
+                        </button>
+                    </div>
+                `;
+                accountsContainer.appendChild(accountCard);
+            });
+        }
+        
+        // Populate account selects in transfer form
+        function populateAccountSelects() {
+            sourceAccountSelect.innerHTML = '<option value="">Select source account</option>';
+            destinationAccountSelect.innerHTML = '<option value="">Select destination account</option>';
+            filterAccount.innerHTML = '<option value="">All Accounts</option>';
+            
+            accounts.forEach(account => {
+                const option1 = document.createElement('option');
+                option1.value = account.id;
+                option1.textContent = `${account.name} (${account.currency})`;
+                sourceAccountSelect.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = account.id;
+                option2.textContent = `${account.name} (${account.currency})`;
+                destinationAccountSelect.appendChild(option2);
+                
+                const option3 = document.createElement('option');
+                option3.value = account.id;
+                option3.textContent = `${account.name} (${account.currency})`;
+                filterAccount.appendChild(option3);
+            });
+        }
+        
+        // Format currency with appropriate symbols and formatting
+        function formatCurrency(amount, currency) {
+            const formatter = new Intl.NumberFormat(undefined, {
+                style: 'currency',
+                currency: currency,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+            
+            // Replace currency code with symbol for better display
+            let formatted = formatter.format(amount);
+            if (currency === 'KES') formatted = formatted.replace('KES', 'KSh');
+            if (currency === 'NGN') formatted = formatted.replace('NGN', '₦');
+            
+            return formatted;
+        }
+        
+        // Handle transfer form submission
+        function handleTransfer(e) {
+            e.preventDefault();
+            
+            // Hide any previous error
+            transferError.classList.add('hidden');
+            
+            // Get form values
+            const sourceId = sourceAccountSelect.value;
+            const destinationId = destinationAccountSelect.value;
+            const amount = parseFloat(amountInput.value);
+            const note = noteInput.value;
+            const transferDate = new Date(transferDateInput.value);
+            const now = new Date();
+            
+            // Validate inputs
+            if (!sourceId || !destinationId) {
+                showError('Please select both source and destination accounts');
+                return;
+            }
+            
+            if (sourceId === destinationId) {
+                showError('Source and destination accounts cannot be the same');
+                return;
+            }
+            
+            if (isNaN(amount) || amount <= 0) {
+                showError('Please enter a valid amount greater than 0');
+                return;
+            }
+            
+            // Find accounts
+            const sourceAccount = accounts.find(a => a.id === sourceId);
+            const destinationAccount = accounts.find(a => a.id === destinationId);
+            
+            // Check balance
+            if (amount > sourceAccount.balance) {
+                showError(`Insufficient balance. Available: ${formatCurrency(sourceAccount.balance, sourceAccount.currency)}`);
+                return;
+            }
+            
+            // If transfer is scheduled for future
+            if (transferDate > now) {
+                scheduleTransfer(sourceAccount, destinationAccount, amount, note, transferDate);
+                return;
+            }
+            
+            // Process transfer immediately
+            processTransfer(sourceAccount, destinationAccount, amount, note);
+        }
+        
+        // Process a transfer between accounts
+        function processTransfer(sourceAccount, destinationAccount, amount, note, isScheduled = false) {
+            // Calculate converted amount if currencies are different
+            let convertedAmount = amount;
+            let rate = 1;
+            
+            if (sourceAccount.currency !== destinationAccount.currency) {
+                rate = exchangeRates[sourceAccount.currency][destinationAccount.currency];
+                convertedAmount = amount * rate;
+            }
+            
+            // Update balances
+            sourceAccount.balance -= amount;
+            destinationAccount.balance += convertedAmount;
+            
+            // Create transaction record
+            const transaction = {
+                id: Date.now(),
+                timestamp: new Date(),
+                sourceAccount: sourceAccount.id,
+                sourceName: sourceAccount.name,
+                sourceCurrency: sourceAccount.currency,
+                destinationAccount: destinationAccount.id,
+                destinationName: destinationAccount.name,
+                destinationCurrency: destinationAccount.currency,
+                amount: amount,
+                convertedAmount: convertedAmount,
+                rate: rate,
+                note: note,
+                isScheduled: isScheduled
+            };
+            
+            transactions.unshift(transaction);
+            
+            // Update UI
+            updateAccountBalanceDisplay(sourceAccount.id);
+            updateAccountBalanceDisplay(destinationAccount.id);
+            renderTransactionLog();
+            
+            // Reset form
+            transferForm.reset();
+            fxConversion.classList.add('hidden');
+            
+            // Set default transfer date to now
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset() * 60000;
+            const localISOTime = new Date(now - timezoneOffset).toISOString().slice(0, 16);
+            transferDateInput.value = localISOTime;
+            
+            // Show success animation
+            const sourceElement = document.querySelector(`[data-account="${sourceAccount.id}"]`);
+            const destinationElement = document.querySelector(`[data-account="${destinationAccount.id}"]`);
+            
+            if (sourceElement) {
+                sourceElement.classList.add('balance-update');
+                setTimeout(() => sourceElement.classList.remove('balance-update'), 500);
+            }
+            
+            if (destinationElement) {
+                destinationElement.classList.add('balance-update');
+                setTimeout(() => destinationElement.classList.remove('balance-update'), 500);
+            }
+        }
+        
+        // Schedule a transfer for future execution
+        function scheduleTransfer(sourceAccount, destinationAccount, amount, note, transferDate) {
+            const scheduledTransfer = {
+                id: Date.now(),
+                sourceAccount: sourceAccount.id,
+                destinationAccount: destinationAccount.id,
+                amount: amount,
+                note: note,
+                transferDate: transferDate,
+                processed: false
+            };
+            
+            scheduledTransfers.push(scheduledTransfer);
+            
+            // Create a "scheduled" transaction record
+            const transaction = {
+                id: scheduledTransfer.id,
+                timestamp: new Date(),
+                sourceAccount: sourceAccount.id,
+                sourceName: sourceAccount.name,
+                sourceCurrency: sourceAccount.currency,
+                destinationAccount: destinationAccount.id,
+                destinationName: destinationAccount.name,
+                destinationCurrency: destinationAccount.currency,
+                amount: amount,
+                note: note,
+                isScheduled: true,
+                scheduledDate: transferDate
+            };
+            
+            transactions.unshift(transaction);
+            
+            // Update UI
+            renderTransactionLog();
+            
+            // Reset form
+            transferForm.reset();
+            fxConversion.classList.add('hidden');
+            
+            // Set default transfer date to now
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset() * 60000;
+            const localISOTime = new Date(now - timezoneOffset).toISOString().slice(0, 16);
+            transferDateInput.value = localISOTime;
+            
+            // Show success message
+            const formattedDate = transferDate.toLocaleString();
+            showError(`Transfer scheduled for ${formattedDate}`, 'bg-green-50 border-green-200 text-green-800');
+        }
+        
+        // Check for scheduled transfers that need to be processed
+        function checkScheduledTransfers() {
+            const now = new Date();
+            let processedAny = false;
+            
+            scheduledTransfers.forEach((transfer, index) => {
+                if (!transfer.processed && new Date(transfer.transferDate) <= now) {
+                    // Process the transfer
+                    const sourceAccount = accounts.find(a => a.id === transfer.sourceAccount);
+                    const destinationAccount = accounts.find(a => a.id === transfer.destinationAccount);
+                    
+                    if (sourceAccount && destinationAccount) {
+                        processTransfer(sourceAccount, destinationAccount, transfer.amount, transfer.note, true);
+                        transfer.processed = true;
+                        processedAny = true;
+                        
+                        // Update the transaction record
+                        const transactionIndex = transactions.findIndex(t => t.id === transfer.id);
+                        if (transactionIndex !== -1) {
+                            transactions[transactionIndex].isScheduled = false;
+                        }
+                    }
+                }
+            });
+            
+            // Remove processed transfers
+            scheduledTransfers = scheduledTransfers.filter(t => !t.processed);
+            
+            if (processedAny) {
+                renderTransactionLog();
+            }
+        }
+        
+        // Update account balance display with animation
+        function updateAccountBalanceDisplay(accountId) {
+            const account = accounts.find(a => a.id === accountId);
+            if (!account) return;
+            
+            const elements = document.querySelectorAll(`[data-account="${accountId}"]`);
+            elements.forEach(element => {
+                element.textContent = formatCurrency(account.balance, account.currency);
+                element.classList.add('balance-update');
+                setTimeout(() => element.classList.remove('balance-update'), 500);
+            });
+        }
+        
+        // Render transaction log
+        function renderTransactionLog() {
+            const accountFilter = filterAccount.value;
+            const currencyFilter = filterCurrency.value;
+            
+            // Filter transactions
+            let filteredTransactions = [...transactions];
+            
+            if (accountFilter) {
+                filteredTransactions = filteredTransactions.filter(t => 
+                    t.sourceAccount === accountFilter || t.destinationAccount === accountFilter
+                );
+            }
+            
+            if (currencyFilter) {
+                filteredTransactions = filteredTransactions.filter(t => 
+                    t.sourceCurrency === currencyFilter || t.destinationCurrency === currencyFilter
+                );
+            }
+            
+            // Update UI
+            if (filteredTransactions.length === 0) {
+                transactionLog.innerHTML = '';
+                noTransactions.classList.remove('hidden');
+                return;
+            }
+            
+            noTransactions.classList.add('hidden');
+            transactionLog.innerHTML = '';
+            
+            filteredTransactions.forEach(transaction => {
+                const row = document.createElement('tr');
+                row.className = transaction.isScheduled ? 'scheduled-transfer bg-blue-50' : '';
+                
+                // Format timestamp
+                const timestamp = new Date(transaction.timestamp);
+                const formattedTime = timestamp.toLocaleString();
+                
+                // Format amount
+                let amountDisplay = formatCurrency(transaction.amount, transaction.sourceCurrency);
+                
+                // If currencies are different, show conversion
+                if (transaction.sourceCurrency !== transaction.destinationCurrency && !transaction.isScheduled) {
+                    amountDisplay += ` → ${formatCurrency(transaction.convertedAmount, transaction.destinationCurrency)}`;
+                    amountDisplay += ` (Rate: 1 ${transaction.sourceCurrency} = ${transaction.rate.toFixed(4)} ${transaction.destinationCurrency})`;
+                }
+                
+                // If scheduled, show scheduled time
+                let noteContent = transaction.note || '';
+                if (transaction.isScheduled && transaction.scheduledDate) {
+                    const scheduledTime = new Date(transaction.scheduledDate).toLocaleString();
+                    noteContent = `<i class="fas fa-clock mr-1"></i> Scheduled for ${scheduledTime}` + (noteContent ? ` | ${noteContent}` : '');
+                }
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${formattedTime}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${transaction.sourceName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${transaction.destinationName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${amountDisplay}</td>
+                    <td class="px-6 py-4 text-sm text-gray-500">${noteContent}</td>
+                `;
+                
+                transactionLog.appendChild(row);
+            });
+        }
+        
+        // Handle source account change to show FX conversion if needed
+        function handleSourceAccountChange() {
+            const sourceId = sourceAccountSelect.value;
+            const destinationId = destinationAccountSelect.value;
+            
+            if (!sourceId || !destinationId) {
+                fxConversion.classList.add('hidden');
+                return;
+            }
+            
+            const sourceAccount = accounts.find(a => a.id === sourceId);
+            const destinationAccount = accounts.find(a => a.id === destinationId);
+            
+            if (sourceAccount.currency !== destinationAccount.currency) {
+                const rate = exchangeRates[sourceAccount.currency][destinationAccount.currency];
+                conversionRate.textContent = `1 ${sourceAccount.currency} = ${rate.toFixed(4)} ${destinationAccount.currency}`;
+                fxConversion.classList.remove('hidden');
+            } else {
+                fxConversion.classList.add('hidden');
+            }
+            
+            updateConvertedAmount();
+        }
+        
+        // Handle destination account change to show FX conversion if needed
+        function handleDestinationAccountChange() {
+            const sourceId = sourceAccountSelect.value;
+            const destinationId = destinationAccountSelect.value;
+            
+            if (!sourceId || !destinationId) {
+                fxConversion.classList.add('hidden');
+                return;
+            }
+            
+            const sourceAccount = accounts.find(a => a.id === sourceId);
+            const destinationAccount = accounts.find(a => a.id === destinationId);
+            
+            if (sourceAccount.currency !== destinationAccount.currency) {
+                const rate = exchangeRates[sourceAccount.currency][destinationAccount.currency];
+                conversionRate.textContent = `1 ${sourceAccount.currency} = ${rate.toFixed(4)} ${destinationAccount.currency}`;
+                fxConversion.classList.remove('hidden');
+            } else {
+                fxConversion.classList.add('hidden');
+            }
+            
+            updateConvertedAmount();
+        }
+        
+        // Update the converted amount display
+        function updateConvertedAmount() {
+            const sourceId = sourceAccountSelect.value;
+            const destinationId = destinationAccountSelect.value;
+            const amount = parseFloat(amountInput.value) || 0;
+            
+            if (!sourceId || !destinationId || isNaN(amount) || amount <= 0) {
+                return;
+            }
+            
+            const sourceAccount = accounts.find(a => a.id === sourceId);
+            const destinationAccount = accounts.find(a => a.id === destinationId);
+            
+            if (sourceAccount.currency !== destinationAccount.currency) {
+                const rate = exchangeRates[sourceAccount.currency][destinationAccount.currency];
+                const converted = amount * rate;
+                convertedAmount.textContent = formatCurrency(converted, destinationAccount.currency);
+            }
+        }
+        
+        // Show error message
+        function showError(message, classes = 'bg-red-50 border-red-200 text-red-800') {
+            transferError.className = classes + ' p-3 rounded-md text-sm';
+            transferError.textContent = message;
+            transferError.classList.remove('hidden');
+        }
+        
+        // Set an account as source from the accounts panel
+        function setAsSourceAccount(accountId) {
+            sourceAccountSelect.value = accountId;
+            destinationAccountSelect.value = '';
+            handleSourceAccountChange();
+            amountInput.focus();
+        }
+        
+        // Reset all accounts to initial balances
+        function resetAccounts() {
+            accounts = [
+                { id: 'mpesa_kes_1', name: 'Mpesa KES 1', currency: 'KES', balance: 50000 },
+                { id: 'mpesa_kes_2', name: 'Mpesa KES 2', currency: 'KES', balance: 75000 },
+                { id: 'mpesa_kes_3', name: 'Mpesa KES 3', currency: 'KES', balance: 30000 },
+                { id: 'bank_kes_1', name: 'Bank KES 1', currency: 'KES', balance: 120000 },
+                { id: 'bank_kes_2', name: 'Bank KES 2', currency: 'KES', balance: 45000 },
+                { id: 'bank_usd_1', name: 'Bank USD 1', currency: 'USD', balance: 1500 },
+                { id: 'bank_usd_2', name: 'Bank USD 2', currency: 'USD', balance: 800 },
+                { id: 'bank_usd_3', name: 'Bank USD 3', currency: 'USD', balance: 2200 },
+                { id: 'bank_ngn_1', name: 'Bank NGN 1', currency: 'NGN', balance: 500000 },
+                { id: 'bank_ngn_2', name: 'Bank NGN 2', currency: 'NGN', balance: 300000 }
+            ];
+            
+            transactions = [
+                {
+                    id: Date.now() - 86400000,
+                    timestamp: new Date(Date.now() - 86400000),
+                    sourceAccount: 'mpesa_kes_1',
+                    sourceName: 'Mpesa KES 1',
+                    sourceCurrency: 'KES',
+                    destinationAccount: 'bank_kes_1',
+                    destinationName: 'Bank KES 1',
+                    destinationCurrency: 'KES',
+                    amount: 10000,
+                    convertedAmount: 10000,
+                    rate: 1,
+                    note: 'Monthly payout'
+                },
+                {
+                    id: Date.now() - 172800000,
+                    timestamp: new Date(Date.now() - 172800000),
+                    sourceAccount: 'bank_usd_1',
+                    sourceName: 'Bank USD 1',
+                    sourceCurrency: 'USD',
+                    destinationAccount: 'bank_ngn_2',
+                    destinationName: 'Bank NGN 2',
+                    destinationCurrency: 'NGN',
+                    amount: 200,
+                    convertedAmount: 200000,
+                    rate: 1000,
+                    note: 'FX conversion for supplier'
+                },
+                {
+                    id: Date.now() - 259200000,
+                    timestamp: new Date(Date.now() - 259200000),
+                    sourceAccount: 'bank_ngn_1',
+                    sourceName: 'Bank NGN 1',
+                    sourceCurrency: 'NGN',
+                    destinationAccount: 'mpesa_kes_3',
+                    destinationName: 'Mpesa KES 3',
+                    destinationCurrency: 'KES',
+                    amount: 100000,
+                    convertedAmount: 13000,
+                    rate: 0.13,
+                    note: 'Regional transfer'
+                }
+            ];
+            scheduledTransfers = [];
+            
+            renderAccounts();
+            renderTransactionLog();
+            transferForm.reset();
+            fxConversion.classList.add('hidden');
+            transferError.classList.add('hidden');
+            
+            // Set default transfer date to now
+            const now = new Date();
+            const timezoneOffset = now.getTimezoneOffset() * 60000;
+            const localISOTime = new Date(now - timezoneOffset).toISOString().slice(0, 16);
+            transferDateInput.value = localISOTime;
+        }
+        
+        // Update converted amount when amount changes
+        amountInput.addEventListener('input', updateConvertedAmount);
+        
+        // Initialize the app when DOM is loaded
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
